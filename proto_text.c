@@ -1564,11 +1564,11 @@ static void process_marithmetic_command(conn *c, token_t *tokens, const size_t n
     mc_resp *resp = c->resp;
     // no reservation (like del/set) since we post-process the status line.
     char *p = resp->wbuf;
+    arith_oper_t oper = ARITH_INCR;
 
     // If no argument supplied, incr or decr by one.
     of.delta = 1;
     of.initial = 0; // redundant, for clarity.
-    bool incr = true; // default mode is to increment.
     bool locked = false;
     uint32_t hv = 0;
     item *it = NULL; // item returned by do_add_delta.
@@ -1604,11 +1604,11 @@ static void process_marithmetic_command(conn *c, token_t *tokens, const size_t n
             break;
         case 'I': // Incr (default)
         case '+':
-            incr = true;
+        	oper = ARITH_INCR;
             break;
         case 'D': // Decr.
         case '-':
-            incr = false;
+        	oper = ARITH_DECR;
             break;
         default:
             errstr = "CLIENT_ERROR invalid mode for ma M token";
@@ -1626,7 +1626,7 @@ static void process_marithmetic_command(conn *c, token_t *tokens, const size_t n
     // return a referenced item if it exists, so we can modify it here, rather
     // than adding even more parameters to do_add_delta.
     bool item_created = false;
-    switch(do_add_delta(c, key, nkey, incr, of.delta, tmpbuf, &of.req_cas_id, hv, &it)) {
+    switch(do_math_oper_delta(c, key, nkey, oper, of.delta, tmpbuf, &of.req_cas_id, hv, &it)) {
     case OK:
         if (c->noreply)
             resp->skip = true;
@@ -1661,11 +1661,12 @@ static void process_marithmetic_command(conn *c, token_t *tokens, const size_t n
             }
         } else {
             pthread_mutex_lock(&c->thread->stats.mutex);
-            if (incr) {
+            if (oper == ARITH_INCR) {
                 c->thread->stats.incr_misses++;
-            } else {
+            } else if (oper == ARITH_DECR) {
                 c->thread->stats.decr_misses++;
             }
+            // MULT_TODO: If mult is a valid operation in this context, need to handle it here as well
             pthread_mutex_unlock(&c->thread->stats.mutex);
             // won't have a valid it here.
             memcpy(p, "NF ", 3);
@@ -1923,7 +1924,7 @@ static void process_touch_command(conn *c, token_t *tokens, const size_t ntokens
     }
 }
 
-static void process_arithmetic_command(conn *c, token_t *tokens, const size_t ntokens, const bool incr) {
+static void process_arithmetic_command(conn *c, token_t *tokens, const size_t ntokens, const arith_oper_t oper) {
     char temp[INCR_MAX_STORAGE_LEN];
     uint64_t delta;
     char *key;
@@ -1946,7 +1947,7 @@ static void process_arithmetic_command(conn *c, token_t *tokens, const size_t nt
         return;
     }
 
-    switch(add_delta(c, key, nkey, incr, delta, temp, NULL)) {
+    switch(math_oper_delta(c, key, nkey, oper, delta, temp, NULL)) {
     case OK:
         out_string(c, temp);
         break;
@@ -1958,10 +1959,12 @@ static void process_arithmetic_command(conn *c, token_t *tokens, const size_t nt
         break;
     case DELTA_ITEM_NOT_FOUND:
         pthread_mutex_lock(&c->thread->stats.mutex);
-        if (incr) {
+        if (oper == ARITH_INCR) {
             c->thread->stats.incr_misses++;
-        } else {
+        } else if (oper == ARITH_DECR){
             c->thread->stats.decr_misses++;
+        } else if (oper == ARITH_MULT) {
+            c->thread->stats.mult_misses++;
         }
         pthread_mutex_unlock(&c->thread->stats.mutex);
 
@@ -2660,7 +2663,7 @@ static void process_command(conn *c, char *command) {
         if (strcmp(tokens[COMMAND_TOKEN].value, "incr") == 0) {
 
             WANT_TOKENS_OR(ntokens, 4, 5);
-            process_arithmetic_command(c, tokens, ntokens, 1);
+            process_arithmetic_command(c, tokens, ntokens, ARITH_INCR);
         } else {
             out_string(c, "ERROR");
         }
@@ -2672,7 +2675,15 @@ static void process_command(conn *c, char *command) {
         } else if (strcmp(tokens[COMMAND_TOKEN].value, "decr") == 0) {
 
             WANT_TOKENS_OR(ntokens, 4, 5);
-            process_arithmetic_command(c, tokens, ntokens, 0);
+            process_arithmetic_command(c, tokens, ntokens, ARITH_DECR);
+        } else {
+            out_string(c, "ERROR");
+        }
+    } else if (first == 'm') {
+        if (strcmp(tokens[COMMAND_TOKEN].value, "mult") == 0) {
+
+            WANT_TOKENS_OR(ntokens, 4, 5);
+            process_arithmetic_command(c, tokens, ntokens, ARITH_MULT);
         } else {
             out_string(c, "ERROR");
         }

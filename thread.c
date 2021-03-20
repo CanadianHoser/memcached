@@ -3,6 +3,7 @@
  * Thread management for memcached.
  */
 #include "memcached.h"
+#include "arith_oper.h"
 #ifdef EXTSTORE
 #include "storage.h"
 #endif
@@ -822,8 +823,8 @@ void item_unlink(item *item) {
 /*
  * Does arithmetic on a numeric item value.
  */
-enum delta_result_type add_delta(conn *c, const char *key,
-                                 const size_t nkey, bool incr,
+enum delta_result_type math_oper_delta(conn *c, const char *key,
+                                 const size_t nkey, arith_oper_t oper,
                                  const int64_t delta, char *buf,
                                  uint64_t *cas) {
     enum delta_result_type ret;
@@ -831,7 +832,7 @@ enum delta_result_type add_delta(conn *c, const char *key,
 
     hv = hash(key, nkey);
     item_lock(hv);
-    ret = do_add_delta(c, key, nkey, incr, delta, buf, cas, hv, NULL);
+    ret = do_math_oper_delta(c, key, nkey, oper, delta, buf, cas, hv, NULL);
     item_unlock(hv);
     return ret;
 }

@@ -115,6 +115,8 @@ extern "C"
         PROTOCOL_BINARY_CMD_SASL_AUTH = 0x21,
         PROTOCOL_BINARY_CMD_SASL_STEP = 0x22,
 
+        PROTOCOL_BINARY_CMD_MULTIPLY = 0x25,
+
         /* These commands are used for range operations and exist within
          * this header for use in other projects.  Range operations are
          * not expected to be implemented in the memcached server itself.
@@ -302,7 +304,7 @@ extern "C"
     typedef protocol_binary_response_no_extras protocol_binary_response_noop;
 
     /**
-     * Definition of the structure used by the increment and decrement
+     * Definition of the structure used by the increment, decrement and multiply
      * command.
      * See section 4
      */
@@ -310,7 +312,7 @@ extern "C"
         struct {
             protocol_binary_request_header header;
             struct {
-                uint64_t delta;
+                uint64_t delta;	// TODO: Should be renamed to better support multiply
                 uint64_t initial;
                 uint32_t expiration;
             } body;
@@ -318,6 +320,7 @@ extern "C"
         uint8_t bytes[sizeof(protocol_binary_request_header) + 20];
     } protocol_binary_request_incr;
     typedef protocol_binary_request_incr protocol_binary_request_decr;
+    typedef protocol_binary_request_incr protocol_binary_request_mult;
 
     /**
      * Definition of the response from an incr or decr command
@@ -334,6 +337,7 @@ extern "C"
         uint8_t bytes[sizeof(protocol_binary_response_header) + 8];
     } protocol_binary_response_incr;
     typedef protocol_binary_response_incr protocol_binary_response_decr;
+    typedef protocol_binary_response_incr protocol_binary_response_mult;
 
     /**
      * Definition of the quit

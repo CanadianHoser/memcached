@@ -41,6 +41,7 @@
 #include "protocol_binary.h"
 #include "cache.h"
 #include "logger.h"
+#include "arith_oper.h"
 
 #ifdef EXTSTORE
 #include "crc32c.h"
@@ -278,7 +279,8 @@ enum delta_result_type {
     X(cas_hits) \
     X(cas_badval) \
     X(incr_hits) \
-    X(decr_hits)
+    X(decr_hits) \
+    X(mult_hits)
 
 /** Stats stored per slab (and per thread). */
 struct slab_stats {
@@ -297,6 +299,7 @@ struct slab_stats {
     X(delete_misses) \
     X(incr_misses) \
     X(decr_misses) \
+    X(mult_misses) \
     X(cas_misses) \
     X(meta_cmds) \
     X(bytes_read) \
@@ -831,8 +834,8 @@ extern void *ext_storage;
  * Functions
  */
 void do_accept_new_conns(const bool do_accept);
-enum delta_result_type do_add_delta(conn *c, const char *key,
-                                    const size_t nkey, const bool incr,
+enum delta_result_type do_math_oper_delta(conn *c, const char *key,
+                                    const size_t nkey, const arith_oper_t oper,
                                     const int64_t delta, char *buf,
                                     uint64_t *cas, const uint32_t hv,
                                     item **it_ret);
@@ -870,8 +873,8 @@ void dispatch_conn_new(int sfd, enum conn_states init_state, int event_flags, in
 void sidethread_conn_close(conn *c);
 
 /* Lock wrappers for cache functions that are called from main loop. */
-enum delta_result_type add_delta(conn *c, const char *key,
-                                 const size_t nkey, bool incr,
+enum delta_result_type math_oper_delta(conn *c, const char *key,
+                                 const size_t nkey, arith_oper_t oper,
                                  const int64_t delta, char *buf,
                                  uint64_t *cas);
 void accept_new_conns(const bool do_accept);

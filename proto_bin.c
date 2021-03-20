@@ -19,7 +19,7 @@ static void process_bin_append_prepend(conn *c);
 static void process_bin_update(conn *c, char *extbuf);
 static void process_bin_get_or_touch(conn *c, char *extbuf);
 static void process_bin_delete(conn *c);
-static void complete_incr_bin(conn *c, char *extbuf);
+static void complete_math_oper_bin(conn *c, char *extbuf);
 static void process_bin_stat(conn *c);
 static void process_bin_sasl_auth(conn *c);
 static void dispatch_bin_command(conn *c, char *extbuf);
@@ -254,13 +254,14 @@ static void write_bin_response(conn *c, void *d, int hlen, int keylen, int dlen)
     conn_set_state(c, conn_new_cmd);
 }
 
-static void complete_incr_bin(conn *c, char *extbuf) {
+static void complete_math_oper_bin(conn *c, char *extbuf) {
     item *it;
     char *key;
     size_t nkey;
     /* Weird magic in add_delta forces me to pad here */
     char tmpbuf[INCR_MAX_STORAGE_LEN];
     uint64_t cas = 0;
+    arith_oper_t oper = ARITH_UNDEF;
 
     protocol_binary_response_incr* rsp = (protocol_binary_response_incr*)c->resp->wbuf;
     protocol_binary_request_incr* req = (void *)extbuf;
@@ -291,9 +292,23 @@ static void complete_incr_bin(conn *c, char *extbuf) {
     if (c->binary_header.request.cas != 0) {
         cas = c->binary_header.request.cas;
     }
-    switch(add_delta(c, key, nkey, c->cmd == PROTOCOL_BINARY_CMD_INCREMENT,
-                     req->message.body.delta, tmpbuf,
-                     &cas)) {
+    switch(c->cmd) {
+    case PROTOCOL_BINARY_CMD_INCREMENT:
+    	oper = ARITH_INCR;
+    	break;
+    case PROTOCOL_BINARY_CMD_DECREMENT:
+    	oper = ARITH_DECR;
+    	break;
+    case PROTOCOL_BINARY_CMD_MULTIPLY:
+    	oper = ARITH_MULT;
+    	break;
+    default:
+    	oper = ARITH_UNDEF;
+    	break;
+    }
+    switch(math_oper_delta(c, key, nkey, oper, /* c->cmd == PROTOCOL_BINARY_CMD_INCREMENT,*/
+                 req->message.body.delta, tmpbuf,
+                 &cas)) {
     case OK:
         rsp->message.body.value = htonll(strtoull(tmpbuf, NULL, 10));
         if (cas) {
@@ -339,8 +354,10 @@ static void complete_incr_bin(conn *c, char *extbuf) {
             pthread_mutex_lock(&c->thread->stats.mutex);
             if (c->cmd == PROTOCOL_BINARY_CMD_INCREMENT) {
                 c->thread->stats.incr_misses++;
-            } else {
+            } else if (c->cmd == PROTOCOL_BINARY_CMD_DECREMENT) {
                 c->thread->stats.decr_misses++;
+            } else if (c->cmd == PROTOCOL_BINARY_CMD_MULTIPLY) {
+                c->thread->stats.mult_misses++;
             }
             pthread_mutex_unlock(&c->thread->stats.mutex);
 
@@ -1006,8 +1023,9 @@ static void dispatch_bin_command(conn *c, char *extbuf) {
             break;
         case PROTOCOL_BINARY_CMD_INCREMENT:
         case PROTOCOL_BINARY_CMD_DECREMENT:
+        case PROTOCOL_BINARY_CMD_MULTIPLY:
             if (keylen > 0 && extlen == 20 && bodylen == (keylen + extlen)) {
-                complete_incr_bin(c, extbuf);
+                complete_math_oper_bin(c, extbuf);
             } else {
                 protocol_error = 1;
             }

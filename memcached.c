@@ -1734,6 +1734,8 @@ void server_stats(ADD_STAT add_stats, conn *c) {
     APPEND_STAT("incr_hits", "%llu", (unsigned long long)slab_stats.incr_hits);
     APPEND_STAT("decr_misses", "%llu", (unsigned long long)thread_stats.decr_misses);
     APPEND_STAT("decr_hits", "%llu", (unsigned long long)slab_stats.decr_hits);
+    APPEND_STAT("mult_misses", "%llu", (unsigned long long)thread_stats.mult_misses);
+    APPEND_STAT("mult_hits", "%llu", (unsigned long long)slab_stats.mult_hits);
     APPEND_STAT("cas_misses", "%llu", (unsigned long long)thread_stats.cas_misses);
     APPEND_STAT("cas_hits", "%llu", (unsigned long long)slab_stats.cas_hits);
     APPEND_STAT("cas_badval", "%llu", (unsigned long long)slab_stats.cas_badval);
@@ -2113,8 +2115,8 @@ item* limited_get_locked(char *key, size_t nkey, conn *c, bool do_update, uint32
  *
  * returns a response string to send back to the client.
  */
-enum delta_result_type do_add_delta(conn *c, const char *key, const size_t nkey,
-                                    const bool incr, const int64_t delta,
+enum delta_result_type do_math_oper_delta(conn *c, const char *key, const size_t nkey,
+                                    const arith_oper_t oper, const int64_t delta,
                                     char *buf, uint64_t *cas,
                                     const uint32_t hv,
                                     item **it_ret) {
@@ -2151,23 +2153,28 @@ enum delta_result_type do_add_delta(conn *c, const char *key, const size_t nkey,
         return NON_NUMERIC;
     }
 
-    if (incr) {
+    if (oper == ARITH_INCR) {
         value += delta;
         MEMCACHED_COMMAND_INCR(c->sfd, ITEM_key(it), it->nkey, value);
-    } else {
+    } else if (oper == ARITH_DECR) {
         if(delta > value) {
             value = 0;
         } else {
             value -= delta;
         }
         MEMCACHED_COMMAND_DECR(c->sfd, ITEM_key(it), it->nkey, value);
+    } else if (oper == ARITH_MULT) {
+        value *= delta;
+        MEMCACHED_COMMAND_MULT(c->sfd, ITEM_key(it), it->nkey, value);
     }
 
     pthread_mutex_lock(&c->thread->stats.mutex);
-    if (incr) {
+    if (oper == ARITH_INCR) {
         c->thread->stats.slab_stats[ITEM_clsid(it)].incr_hits++;
-    } else {
+    } else if (oper == ARITH_DECR) {
         c->thread->stats.slab_stats[ITEM_clsid(it)].decr_hits++;
+    } else if (oper == ARITH_MULT) {
+        c->thread->stats.slab_stats[ITEM_clsid(it)].mult_hits++;
     }
     pthread_mutex_unlock(&c->thread->stats.mutex);
 
