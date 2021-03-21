@@ -1964,7 +1964,9 @@ static void process_arithmetic_command(conn *c, token_t *tokens, const size_t nt
         } else if (oper == ARITH_DECR){
             c->thread->stats.decr_misses++;
         } else if (oper == ARITH_MULT) {
+#ifdef __TODO_FIX_STATS__
             c->thread->stats.mult_misses++;
+#endif
         }
         pthread_mutex_unlock(&c->thread->stats.mutex);
 

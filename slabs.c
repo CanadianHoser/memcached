@@ -596,8 +596,10 @@ static void do_slabs_stats(ADD_STAT add_stats, void *c) {
                     (unsigned long long)thread_stats.slab_stats[i].cas_badval);
             APPEND_NUM_STAT(i, "touch_hits", "%llu",
                     (unsigned long long)thread_stats.slab_stats[i].touch_hits);
+#ifdef __TODO_FIX_STATS__
             APPEND_NUM_STAT(i, "mult_hits", "%llu",
                     (unsigned long long)thread_stats.slab_stats[i].mult_hits);
+#endif
             total++;
         }
     }

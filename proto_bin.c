@@ -357,7 +357,9 @@ static void complete_math_oper_bin(conn *c, char *extbuf) {
             } else if (c->cmd == PROTOCOL_BINARY_CMD_DECREMENT) {
                 c->thread->stats.decr_misses++;
             } else if (c->cmd == PROTOCOL_BINARY_CMD_MULTIPLY) {
+#ifdef __TODO_FIX_STATS__
                 c->thread->stats.mult_misses++;
+#endif
             }
             pthread_mutex_unlock(&c->thread->stats.mutex);
 
