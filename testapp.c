@@ -1833,6 +1833,8 @@ static enum test_return test_binary_decrq(void) {
                                  PROTOCOL_BINARY_CMD_DECREMENTQ);
 }
 
+// WKH TODO: Add multiplication test case
+
 static enum test_return test_binary_version(void) {
     union {
         protocol_binary_request_no_extras request;
@@ -2036,7 +2038,7 @@ static enum test_return test_binary_stat(void) {
 }
 
 static enum test_return test_binary_illegal(void) {
-    uint8_t cmd = 0x25;
+    uint8_t cmd = PROTOCOL_BINARY_CMD_ILLEGAL;
     while (cmd != 0x00) {
         union {
             protocol_binary_request_no_extras request;
