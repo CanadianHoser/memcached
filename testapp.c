@@ -2126,6 +2126,7 @@ static enum test_return test_binary_pipeline_hickup_chunk(void *buffer, size_t b
         case PROTOCOL_BINARY_CMD_DECREMENTQ:
         case PROTOCOL_BINARY_CMD_INCREMENT:
         case PROTOCOL_BINARY_CMD_INCREMENTQ:
+        case PROTOCOL_BINARY_CMD_MULTIPLY:
             len = arithmetic_command(command.bytes, sizeof(command.bytes), cmd,
                                      key, keylen, 1, 0, 0);
             break;
